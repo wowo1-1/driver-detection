@@ -5,8 +5,6 @@ import mydetect     #yolo检测
 import myfatigue    #疲劳检测
 import time
 
-cap = cv2.VideoCapture(0)
-
 def frametest(frame):
     # frame为帧输入
 
@@ -43,9 +41,16 @@ def frametest(frame):
         cv2.putText(frame,text,(left, top-5),cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 1)
 
     # 将信息加入到ret中
-    ret.append(labellist)
-    ret.append(round(eye,3))
-    ret.append(round(mouth,3))
+    ret.append(labellist)                    # [0] 标签列表
+    ret.append(round(eye,3))                 # [1] 眼睛开合度
+    ret.append(round(mouth,3))               # [2] 嘴巴开合度
+    # [3] 完整检测数据 [(label, conf, [x1,y1,x2,y2]), ...]
+    # 注意：将 xyxy 转成普通 int，避免 PyTorch 张量传到追踪器出问题
+    action_clean = []
+    for label, prob, xyxy in action:
+        box = [int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])]
+        action_clean.append([label, prob, box])
+    ret.append(action_clean)
 
     # 计时结束
     tend = time.time()

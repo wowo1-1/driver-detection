@@ -8,9 +8,9 @@
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide2.QtCore import *
-from PySide2.QtGui import *
-from PySide2.QtWidgets import *
+from PySide6.QtCore import *
+from PySide6.QtGui import *
+from PySide6.QtWidgets import *
 
 
 class Ui_MainWindow(object):
@@ -20,6 +20,9 @@ class Ui_MainWindow(object):
         MainWindow.resize(1060, 578)
         self.actionOpen_camera = QAction(MainWindow)
         self.actionOpen_camera.setObjectName(u"actionOpen_camera")
+        self.actionClose_camera = QAction(MainWindow)
+        self.actionClose_camera.setObjectName(u"actionClose_camera")
+        self.actionClose_camera.setEnabled(False)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.verticalLayout_2 = QVBoxLayout(self.centralwidget)
@@ -39,13 +42,13 @@ class Ui_MainWindow(object):
         self.horizontalLayout_5.setObjectName(u"horizontalLayout_5")
         self.label_2 = QLabel(self.centralwidget)
         self.label_2.setObjectName(u"label_2")
-        self.label_2.setMaximumSize(QSize(120, 30))
+        self.label_2.setMaximumSize(QSize(160, 40))
 
         self.horizontalLayout_5.addWidget(self.label_2)
 
         self.label_10 = QLabel(self.centralwidget)
         self.label_10.setObjectName(u"label_10")
-        self.label_10.setMaximumSize(QSize(180, 30))
+        self.label_10.setMaximumSize(QSize(220, 40))
 
         self.horizontalLayout_5.addWidget(self.label_10)
 
@@ -56,13 +59,13 @@ class Ui_MainWindow(object):
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
         self.label_3 = QLabel(self.centralwidget)
         self.label_3.setObjectName(u"label_3")
-        self.label_3.setMaximumSize(QSize(150, 30))
+        self.label_3.setMaximumSize(QSize(180, 36))
 
         self.horizontalLayout_2.addWidget(self.label_3)
 
         self.label_4 = QLabel(self.centralwidget)
         self.label_4.setObjectName(u"label_4")
-        self.label_4.setMaximumSize(QSize(150, 30))
+        self.label_4.setMaximumSize(QSize(180, 36))
 
         self.horizontalLayout_2.addWidget(self.label_4)
 
@@ -73,13 +76,13 @@ class Ui_MainWindow(object):
         self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
         self.label_5 = QLabel(self.centralwidget)
         self.label_5.setObjectName(u"label_5")
-        self.label_5.setMaximumSize(QSize(120, 30))
+        self.label_5.setMaximumSize(QSize(160, 40))
 
         self.horizontalLayout_4.addWidget(self.label_5)
 
         self.label_9 = QLabel(self.centralwidget)
         self.label_9.setObjectName(u"label_9")
-        self.label_9.setMaximumSize(QSize(180, 30))
+        self.label_9.setMaximumSize(QSize(240, 40))
 
         self.horizontalLayout_4.addWidget(self.label_9)
 
@@ -90,19 +93,19 @@ class Ui_MainWindow(object):
         self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
         self.label_6 = QLabel(self.centralwidget)
         self.label_6.setObjectName(u"label_6")
-        self.label_6.setMaximumSize(QSize(100, 30))
+        self.label_6.setMaximumSize(QSize(140, 36))
 
         self.horizontalLayout_3.addWidget(self.label_6)
 
         self.label_7 = QLabel(self.centralwidget)
         self.label_7.setObjectName(u"label_7")
-        self.label_7.setMaximumSize(QSize(100, 30))
+        self.label_7.setMaximumSize(QSize(140, 36))
 
         self.horizontalLayout_3.addWidget(self.label_7)
 
         self.label_8 = QLabel(self.centralwidget)
         self.label_8.setObjectName(u"label_8")
-        self.label_8.setMaximumSize(QSize(100, 30))
+        self.label_8.setMaximumSize(QSize(140, 36))
 
         self.horizontalLayout_3.addWidget(self.label_8)
 
@@ -111,7 +114,7 @@ class Ui_MainWindow(object):
 
         self.textBrowser = QTextBrowser(self.centralwidget)
         self.textBrowser.setObjectName(u"textBrowser")
-        self.textBrowser.setMaximumSize(QSize(300, 360))
+        self.textBrowser.setMaximumSize(QSize(320, 300))
 
         self.verticalLayout.addWidget(self.textBrowser)
 
@@ -134,6 +137,7 @@ class Ui_MainWindow(object):
 
         self.menubar.addAction(self.menu.menuAction())
         self.menu.addAction(self.actionOpen_camera)
+        self.menu.addAction(self.actionClose_camera)
 
         self.retranslateUi(MainWindow)
 
@@ -143,6 +147,7 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
         self.actionOpen_camera.setText(QCoreApplication.translate("MainWindow", u"Open camera", None))
+        self.actionClose_camera.setText(QCoreApplication.translate("MainWindow", u"Close camera", None))
         self.label.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
         self.label_10.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
@@ -159,5 +164,5 @@ class Ui_MainWindow(object):
     # 消息框显示函数
     def printf(self, mes):
         self.textBrowser.append(mes)  # 在指定的区域显示提示信息
-        self.cursot = self.textBrowser.textCursor()
-        self.textBrowser.moveCursor(self.cursot.End)
+        self.cursor = self.textBrowser.textCursor()
+        self.textBrowser.moveCursor(QTextCursor.MoveOperation.End)

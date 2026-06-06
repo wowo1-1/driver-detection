@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 项目运行数据
+screenshots/
+registered_faces/
+*.csv
+alerter_config.json
+
+# 演示视频（体积太大）
+演示视频.MP4
+
+# 测试文件
+test_qimage.py
+
+# OS
+Thumbs.db
+.DS_Store

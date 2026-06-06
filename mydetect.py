@@ -48,7 +48,7 @@ def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scale
 weights = r'weights/best.pt'
 opt_device = ''  # device = 'cpu' or '0' or '0,1,2,3'
 imgsz = 640
-opt_conf_thres = 0.6
+opt_conf_thres = 0.4
 opt_iou_thres = 0.45
  
 # Initialize
