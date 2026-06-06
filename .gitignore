@@ -18,6 +18,7 @@ screenshots/
 registered_faces/
 *.csv
 alerter_config.json
+server_data.json
 
 # 演示视频（体积太大）
 演示视频.MP4

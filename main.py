@@ -19,6 +19,8 @@ import tracker                        # DeepSORT 风格目标追踪
 import pyttsx3                        # 中文语音播报
 import faceauth                       # 人脸识别
 import alerter                        # 远程邮件报警
+import urllib.request                  # 向老板端服务器上报
+import urllib.parse
 
 # 定义变量
 
@@ -205,6 +207,33 @@ def enhance_frame(frame):
 
 # ========== 👤 当前驾驶员 ==========
 current_driver = "未识别"
+employee_name = ""                      # 员工姓名（用于老板端上报）
+
+# ========== ☁️ 老板端服务器 ==========
+boss_server_enabled = False
+boss_server_url = "http://localhost:6789"
+
+def report_to_server(event_type, detail=""):
+    """向老板端服务器上报检测事件"""
+    global employee_name
+    if not boss_server_enabled or not employee_name:
+        return
+    try:
+        data = json.dumps({
+            "name": employee_name,
+            "driver": current_driver,
+            "type": event_type,
+            "detail": detail,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"{boss_server_url}/report",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        urllib.request.urlopen(req, timeout=2)
+    except Exception:
+        pass
 
 # ========== 🔧 阈值滑条回调 ==========
 def on_conf_threshold_changed(value):
@@ -476,6 +505,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.actionNightMode.triggered.connect(toggle_night_mode)
         self.menu.addAction(self.actionNightMode)
 
+        # 老板端服务器
+        self.actionBossConfig = QtGui.QAction("☁️ 老板端服务器设置", self)
+        self.actionBossConfig.setObjectName("actionBossConfig")
+        self.actionBossConfig.triggered.connect(boss_config_dialog)
+        self.menu.addAction(self.actionBossConfig)
+
+        self.menu.addSeparator()
+
         # 邮件报警配置
         self.actionAlertConfig = QtGui.QAction("📧 邮件报警设置", self)
         self.actionAlertConfig.setObjectName("actionAlertConfig")
@@ -685,7 +722,7 @@ class CamConfig:
                     log_event("分心行为", "使用手机")
                     speak_chinese("请不要使用手机，专心驾驶")
                     play_beep()
-                    # 📧 邮件报警
+                    report_to_server("phone", "正在使用手机")
                     ss = f"screenshots/{datetime.now().strftime('%Y%m%d_%H%M%S')}_phone.jpg"
                     alerter.send_alert("phone", f"驾驶员 {current_driver} 正在使用手机", ss)
             elif phone_consec == 0 and last_alerted_phone:
@@ -708,6 +745,7 @@ class CamConfig:
                     log_event("分心行为", "抽烟")
                     speak_chinese("检测到抽烟，请熄灭香烟")
                     play_beep()
+                    report_to_server("smoke", "正在抽烟")
                     ss = f"screenshots/{datetime.now().strftime('%Y%m%d_%H%M%S')}_smoke.jpg"
                     alerter.send_alert("smoke", f"驾驶员 {current_driver} 正在抽烟", ss)
             elif smoke_consec == 0 and last_alerted_smoke:
@@ -730,6 +768,7 @@ class CamConfig:
                     log_event("分心行为", "喝水")
                     speak_chinese("请勿在驾驶时喝水")
                     play_beep()
+                    report_to_server("drink", "正在喝水")
                     ss = f"screenshots/{datetime.now().strftime('%Y%m%d_%H%M%S')}_drink.jpg"
                     alerter.send_alert("drink", f"驾驶员 {current_driver} 正在喝水", ss)
             elif drink_consec == 0 and last_alerted_drink:
@@ -797,6 +836,7 @@ class CamConfig:
                         save_screenshot(frame, "fatigue")
                         log_event("疲劳警报", f"Perclos={perclos:.3f}")
                         speak_chinese("您已疲劳，请靠边停车休息")
+                        report_to_server("fatigue", f"Perclos={perclos:.3f}")
                         alerter.send_alert("fatigue", f"驾驶员 {current_driver} 处于疲劳状态 (Perclos={perclos:.3f})")
                     Ui_MainWindow.printf(window,"")
                 else:
@@ -1041,6 +1081,57 @@ def alert_config_dialog():
         dialog.accept()
     save_btn.clicked.connect(do_save)
     btn_layout.addWidget(save_btn)
+
+    layout.addLayout(btn_layout)
+    dialog.exec()
+
+
+# ========== ☁️ 老板端服务器配置 ==========
+def boss_config_dialog():
+    global boss_server_enabled, boss_server_url, employee_name
+    cfg = {"enabled": boss_server_enabled, "url": boss_server_url, "name": employee_name}
+
+    dialog = QtWidgets.QDialog(window)
+    dialog.setWindowTitle("☁️ 老板端服务器")
+    dialog.resize(420, 220)
+
+    layout = QVBoxLayout(dialog)
+
+    enable_cb = QtWidgets.QCheckBox("📡 启用数据上报")
+    enable_cb.setChecked(cfg["enabled"])
+    layout.addWidget(enable_cb)
+
+    form = QtWidgets.QFormLayout()
+    name_edit = QtWidgets.QLineEdit(cfg["name"])
+    name_edit.setPlaceholderText("输入员工姓名（用于老板端识别）")
+    url_edit = QtWidgets.QLineEdit(cfg["url"])
+    url_edit.setPlaceholderText("http://服务器IP:6789")
+    form.addRow("👤 我的姓名:", name_edit)
+    form.addRow("🌐 服务器地址:", url_edit)
+    layout.addLayout(form)
+
+    info = QtWidgets.QLabel("💡 先启动 server.py，再运行 boss_app.py 即可查看")
+    info.setStyleSheet("color: #8b949e; font-size: 12px;")
+    layout.addWidget(info)
+
+    btn_layout = QHBoxLayout()
+    save_btn = QtWidgets.QPushButton("💾 保存")
+    def do_save():
+        global boss_server_enabled, boss_server_url, employee_name
+        boss_server_enabled = enable_cb.isChecked()
+        employee_name = name_edit.text().strip()
+        boss_server_url = url_edit.text().strip()
+        if boss_server_enabled and employee_name:
+            Ui_MainWindow.printf(window, f"☁️ 已连接到老板端: {boss_server_url}")
+            report_to_server("normal", f"{employee_name} 上线")
+        QMessageBox.information(dialog, "成功", "设置已保存 ✅")
+        dialog.accept()
+    save_btn.clicked.connect(do_save)
+    btn_layout.addWidget(save_btn)
+
+    cancel_btn = QtWidgets.QPushButton("取消")
+    cancel_btn.clicked.connect(dialog.reject)
+    btn_layout.addWidget(cancel_btn)
 
     layout.addLayout(btn_layout)
     dialog.exec()
