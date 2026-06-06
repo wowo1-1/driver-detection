@@ -1115,6 +1115,25 @@ def boss_config_dialog():
     layout.addWidget(info)
 
     btn_layout = QHBoxLayout()
+
+    test_btn = QtWidgets.QPushButton("📡 测试连接")
+    def do_test():
+        url = url_edit.text().strip()
+        if "://" not in url: url = "http://" + url
+        try:
+            import urllib.request
+            resp = urllib.request.urlopen(f"{url}/health", timeout=3)
+            data = json.loads(resp.read())
+            if data.get("status") == "ok":
+                QMessageBox.information(dialog, "成功", "✅ 连接服务器成功！")
+                Ui_MainWindow.printf(window, "☁️ 老板端服务器连接正常")
+            else:
+                QMessageBox.warning(dialog, "失败", "❌ 服务器响应异常")
+        except Exception as e:
+            QMessageBox.warning(dialog, "失败", f"❌ 无法连接:\n{str(e)[:60]}")
+    test_btn.clicked.connect(do_test)
+    btn_layout.addWidget(test_btn)
+
     save_btn = QtWidgets.QPushButton("💾 保存")
     def do_save():
         global boss_server_enabled, boss_server_url, employee_name
