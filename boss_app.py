@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 
 # ===== 配置 =====
-DEFAULT_SERVER = "localhost:6789"
+DEFAULT_SERVER = "http://localhost:6789"
 POLL_INTERVAL = 2  # 每2秒刷新一次
 
 # 状态颜色映射
@@ -263,8 +263,10 @@ class BossWindow(QtWidgets.QMainWindow):
 
     def _setup_timer(self):
         self.timer = QTimer()
-        self.timer.timeout.connect(self._poll_trigger)
+        self.timer.timeout.connect(self._poll_server)
         self.timer.start(2000)
+        # 启动后立即轮询一次
+        QTimer.singleShot(100, self._poll_server)
 
     def _connect_server(self):
         addr = self.addr_edit.text().strip()
@@ -272,79 +274,56 @@ class BossWindow(QtWidgets.QMainWindow):
             addr = "http://" + addr
         self.server_url = addr.replace("http://http://", "http://")
         self.statusbar.showMessage(f"🔄 连接 {self.server_url}...")
-        self._poll_trigger()
+        self._poll_server()
 
-    def _poll_trigger(self):
-        """触发后台轮询（不卡主线程）"""
-        if self._poll_busy:
-            return
-        self._poll_busy = True
-        threading.Thread(target=self._poll_worker, daemon=True).start()
-
-    def _poll_worker(self):
-        """后台线程拉取数据"""
+    def _poll_server(self):
+        """定时轮询（短超时，不卡界面）"""
         try:
-            # 拉取员工状态
+            # 获取员工状态
             url = f"{self.server_url}/status"
-            req = urllib.request.Request(url)
-            resp = urllib.request.urlopen(req, timeout=3)
+            resp = urllib.request.urlopen(url, timeout=1)
             data = json.loads(resp.read().decode("utf-8"))
             employees = data.get("employees", {})
             total = data.get("total", 0)
 
-            # 在主线程更新 UI
-            QTimer.singleShot(0, lambda: self._update_status(employees, total, None))
+            self.conn_label.setText("🟢 已连接")
+            self.conn_label.setStyleSheet("font-size: 13px; color: #2ea043;")
+            self.emp_count_label.setText(f"👥 员工: {total}")
+            self.statusbar.showMessage(f"🟢 已连接  |  {total} 名员工在线")
 
-            # 拉取事件
+            # 更新卡片
+            names = list(employees.keys())
+            while self.cards_layout.count() > len(names):
+                item = self.cards_layout.takeAt(self.cards_layout.count() - 1)
+                if item and item.widget():
+                    item.widget().deleteLater()
+            for i, name in enumerate(names):
+                if i < self.cards_layout.count():
+                    card = self.cards_layout.itemAt(i).widget()
+                else:
+                    card = EmployeeCard()
+                    self.cards_layout.addWidget(card)
+                card.update_data(employees[name])
+
+            # 获取事件
             url2 = f"{self.server_url}/events"
-            req2 = urllib.request.Request(url2, headers={"X-Limit": "50"})
-            resp2 = urllib.request.urlopen(req2, timeout=3)
+            resp2 = urllib.request.urlopen(url2, timeout=1)
             events_data = json.loads(resp2.read().decode("utf-8"))
             events = events_data.get("events", [])
 
-            QTimer.singleShot(0, lambda: self._update_events(events))
+            while self.event_layout.count() > 1:
+                item = self.event_layout.takeAt(0)
+                if item and item.widget():
+                    item.widget().deleteLater()
+            for evt in reversed(events[-50:]):
+                ew = EventWidget(evt)
+                self.event_layout.insertWidget(self.event_layout.count() - 1, ew)
 
         except Exception as e:
-            QTimer.singleShot(0, lambda: self._update_status({}, 0, str(e)))
-        finally:
-            QTimer.singleShot(0, lambda: setattr(self, '_poll_busy', False))
-
-    def _update_status(self, employees, total, error):
-        """主线程更新 UI（安全调用）"""
-        if error:
             self.conn_label.setText("🔴 未连接")
             self.conn_label.setStyleSheet("font-size: 13px; color: #f85149;")
-            self.statusbar.showMessage(f"🔴 无法连接服务器: {error[:30]}...")
-            return
-
-        self.conn_label.setText("🟢 已连接")
-        self.conn_label.setStyleSheet("font-size: 13px; color: #2ea043;")
-        self.emp_count_label.setText(f"👥 员工: {total}")
-        self.statusbar.showMessage(f"🟢 已连接  |  {total} 名员工在线")
-
-        # 更新卡片
-        names = list(employees.keys())
-        while self.cards_layout.count() > len(names):
-            item = self.cards_layout.takeAt(self.cards_layout.count() - 1)
-            if item and item.widget():
-                item.widget().deleteLater()
-        for i, name in enumerate(names):
-            if i < self.cards_layout.count():
-                card = self.cards_layout.itemAt(i).widget()
-            else:
-                card = EmployeeCard()
-                self.cards_layout.addWidget(card)
-            card.update_data(employees[name])
-
-    def _update_events(self, events):
-        """主线程更新事件列表"""
-        while self.event_layout.count() > 1:
-            item = self.event_layout.takeAt(0)
-            if item and item.widget():
-                item.widget().deleteLater()
-        for evt in reversed(events[-50:]):
-            ew = EventWidget(evt)
-            self.event_layout.insertWidget(self.event_layout.count() - 1, ew)
+            err_msg = str(e)[:30] if str(e) else "连接失败"
+            self.statusbar.showMessage(f"🔴 {err_msg}...")
 
     def _update_cards(self, employees):
         """更新员工卡片"""
