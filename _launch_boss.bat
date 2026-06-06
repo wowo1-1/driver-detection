@@ -1,0 +1,1 @@
+@start "" "D:\ai\pilaojiance\Yolov5-deepsort-driverDistracted-driving-behavior-detection\venv\Scripts\python.exe" "D:\ai\pilaojiance\Yolov5-deepsort-driverDistracted-driving-behavior-detection\boss_app.py"
