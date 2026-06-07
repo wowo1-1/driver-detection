@@ -1,12 +1,10 @@
 """
 Boss Monitor - Real-time employee driving status dashboard
-Uses QNetworkAccessManager for non-blocking network requests
 """
 
-import sys, json, os
+import sys, json, os, urllib.request, urllib.error
 from PySide6 import QtWidgets, QtCore, QtGui
-from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+from PySide6.QtCore import Qt, QTimer
 
 DEFAULT_SERVER = "http://localhost:6789"
 POLL_INTERVAL = 3000
@@ -89,49 +87,56 @@ class BossWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.server_url = DEFAULT_SERVER
-        self._nam = QNetworkAccessManager()
-        self._nam.finished.connect(self._on_reply)
-        self._pending = "status"
-        self._employees = {}
-        self._events = []
         self._setup_ui()
-        self._setup_timer()
+        self._start_polling()
+
+    def _http_get(self, path):
+        """同步 GET 请求（短超时，不卡 UI）"""
+        try:
+            url = f"{self.server_url}{path}"
+            req = urllib.request.Request(url)
+            resp = urllib.request.urlopen(req, timeout=1)
+            return json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return None
 
     def _setup_ui(self):
         self.setWindowTitle("👔 驾驶监控中心")
         self.resize(1100, 700)
         self.setStyleSheet("""
-            QMainWindow { background-color: #0d1117; }
-            QWidget { color: #c9d1d9; font-size: 13px; }
+            QMainWindow, QWidget { background-color: #0d1117; color: #c9d1d9; font-size: 13px; }
             QLabel { color: #c9d1d9; }
             QPushButton { background-color: #21262d; border: 1px solid #30363d;
                 border-radius: 6px; padding: 8px 16px; color: #c9d1d9; }
-            QPushButton:hover { background-color: #30363d; border-color: #58a6ff; }
+            QPushButton:hover { background-color: #30363d; }
             QScrollBar:vertical { background: #0d1117; width: 8px; border: none; }
             QScrollBar::handle:vertical { background: #30363d; border-radius: 4px; }
         """)
         cw = QtWidgets.QWidget(); self.setCentralWidget(cw)
         ml = QtWidgets.QVBoxLayout(cw); ml.setSpacing(12); ml.setContentsMargins(16, 12, 16, 12)
 
-        # Top bar
         tb = QtWidgets.QHBoxLayout()
-        title = QtWidgets.QLabel("👔 驾驶监控中心"); title.setStyleSheet("font-size: 22px; font-weight: bold; color: #c9d1d9;")
+        title = QtWidgets.QLabel("👔 驾驶监控中心")
+        title.setStyleSheet("font-size: 22px; font-weight: bold;")
         tb.addWidget(title); tb.addStretch()
-        self.conn_label = QtWidgets.QLabel("🔴 未连接"); self.conn_label.setStyleSheet("color: #f85149;")
+        self.conn_label = QtWidgets.QLabel("🔴 未连接")
+        self.conn_label.setStyleSheet("color: #f85149;")
         tb.addWidget(self.conn_label)
-        self.emp_label = QtWidgets.QLabel("员工: 0"); self.emp_label.setStyleSheet("color: #8b949e;")
+        self.emp_label = QtWidgets.QLabel("员工: 0")
+        self.emp_label.setStyleSheet("color: #8b949e;")
         tb.addWidget(self.emp_label)
-        self.addr_edit = QtWidgets.QLineEdit(self.server_url); self.addr_edit.setFixedWidth(200)
-        self.addr_edit.setStyleSheet("background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 6px 8px; color: #c9d1d9;")
+        self.addr_edit = QtWidgets.QLineEdit(self.server_url)
+        self.addr_edit.setFixedWidth(200)
+        self.addr_edit.setStyleSheet("background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 6px 8px;")
         tb.addWidget(self.addr_edit)
-        btn = QtWidgets.QPushButton("🔄 连接"); btn.clicked.connect(self._connect); tb.addWidget(btn)
+        btn = QtWidgets.QPushButton("🔄 连接")
+        btn.clicked.connect(self._connect)
+        tb.addWidget(btn)
         ml.addLayout(tb)
 
-        # Cards
         sc = QtWidgets.QScrollArea(); sc.setWidgetResizable(True); sc.setStyleSheet("QScrollArea { border: none; }")
         sw = QtWidgets.QWidget(); self.cl = QFlowLayout(sw); sc.setWidget(sw); ml.addWidget(sc, 3)
 
-        # Events
         el = QtWidgets.QLabel("📋 报警记录"); el.setStyleSheet("font-size: 15px; font-weight: bold; color: #58a6ff;")
         ml.addWidget(el)
         es = QtWidgets.QScrollArea(); es.setWidgetResizable(True); es.setFixedHeight(180)
@@ -140,74 +145,67 @@ class BossWindow(QtWidgets.QMainWindow):
         self.evl.setContentsMargins(4, 4, 4, 4); self.evl.addStretch()
         es.setWidget(ew); ml.addWidget(es, 1)
 
-        self.sb = QtWidgets.QStatusBar(); self.sb.setStyleSheet("background: #161b22; border-top: 1px solid #30363d; padding: 4px;")
+        self.sb = QtWidgets.QStatusBar()
+        self.sb.setStyleSheet("background: #161b22; border-top: 1px solid #30363d; padding: 4px;")
         self.setStatusBar(self.sb); self.sb.showMessage("等待连接...")
 
-    def _async_get(self, path):
-        url = QUrl(f"{self.server_url}{path}")
-        req = QNetworkRequest(url); req.setTransferTimeout(3000)
-        self._nam.get(req)
-
-    def _setup_timer(self):
-        QTimer(self).timeout.connect(self._tick)
-        QTimer(self).start(POLL_INTERVAL)
-        QTimer.singleShot(200, self._tick)
+    def _start_polling(self):
+        self._poll()
+        self.timer = QTimer()
+        self.timer.timeout.connect(self._poll)
+        self.timer.start(3000)
 
     def _connect(self):
         addr = self.addr_edit.text().strip()
         if "://" not in addr: addr = "http://" + addr
         self.server_url = addr
-        QTimer.singleShot(100, self._tick)
+        self.sb.showMessage("正在连接...")
+        self._poll()
 
-    def _tick(self):
-        self._pending = "status"
-        self._async_get("/status")
-
-    def _on_reply(self, reply):
-        if reply.error():
-            self.conn_label.setText("🔴 未连接"); self.conn_label.setStyleSheet("color: #f85149;")
-            self.sb.showMessage("连接失败")
-            return
-        try:
-            data = json.loads(bytes(reply.readAll().data()).decode("utf-8"))
-        except Exception:
+    def _poll(self):
+        """轮询服务器（简单粗暴不卡顿，timeout=1秒）"""
+        # 拉取状态
+        data = self._http_get("/status")
+        if data is None:
+            self.conn_label.setText("🔴 未连接")
+            self.conn_label.setStyleSheet("color: #f85149;")
             return
 
-        if self._pending == "status":
-            self._pending = "events"
-            emps = data.get("employees", {})
-            self._employees = emps
-            total = len(emps)
-            self.conn_label.setText("🟢 已连接"); self.conn_label.setStyleSheet("color: #2ea043;")
-            self.emp_label.setText(f"员工: {total}")
-            self.sb.showMessage(f"🟢 已连接 | {total} 名员工在线")
-            names = list(emps.keys())
-            while self.cl.count() > len(names):
-                it = self.cl.takeAt(self.cl.count()-1)
-                if it and it.widget(): it.widget().deleteLater()
-            for i, n in enumerate(names):
-                if i < self.cl.count():
-                    self.cl.itemAt(i).widget().update_data(emps[n])
-                else:
-                    c = EmployeeCard(); c.update_data(emps[n]); self.cl.addWidget(c)
-            self._async_get("/events")
-        else:
-            evs = data.get("events", [])
-            self._events = evs
+        self.conn_label.setText("🟢 已连接")
+        self.conn_label.setStyleSheet("color: #2ea043;")
+        emps = data.get("employees", {})
+        total = len(emps)
+        self.emp_label.setText(f"员工: {total}")
+        self.sb.showMessage(f"🟢 已连接 | {total} 名员工在线")
+
+        # 更新卡片
+        names = list(emps.keys())
+        while self.cl.count() > len(names):
+            it = self.cl.takeAt(self.cl.count()-1)
+            if it and it.widget(): it.widget().deleteLater()
+        for i, n in enumerate(names):
+            if i < self.cl.count():
+                self.cl.itemAt(i).widget().update_data(emps[n])
+            else:
+                c = EmployeeCard(); c.update_data(emps[n]); self.cl.addWidget(c)
+
+        # 拉取事件
+        evdata = self._http_get("/events")
+        if evdata:
+            evs = evdata.get("events", [])
             while self.evl.count() > 1:
                 it = self.evl.takeAt(0)
                 if it and it.widget(): it.widget().deleteLater()
             for evt in reversed(evs[-50:]):
-                h = QtWidgets.QHBoxLayout()
-                h.setContentsMargins(8, 2, 8, 2)
+                w = QtWidgets.QWidget()
+                hl = QtWidgets.QHBoxLayout(w); hl.setContentsMargins(8, 2, 8, 2)
                 t = QtWidgets.QLabel(evt.get("time","")[-8:]); t.setFixedWidth(70); t.setStyleSheet("color: #484f58;")
                 n = QtWidgets.QLabel(evt.get("name","?")); n.setFixedWidth(60); n.setStyleSheet("color: #c9d1d9; font-weight: bold;")
-                s = STATUS_LABELS.get(evt.get("type",""), evt.get("type",""))
-                c = STATUS_COLORS.get(evt.get("type",""), "#484f58")
-                st = QtWidgets.QLabel(s); st.setFixedWidth(80); st.setStyleSheet(f"color: {c}; font-weight: bold;")
+                stype = evt.get("type","")
+                sc = STATUS_COLORS.get(stype, "#484f58")
+                sl = STATUS_LABELS.get(stype, stype)
+                st = QtWidgets.QLabel(sl); st.setFixedWidth(70); st.setStyleSheet(f"color: {sc}; font-weight: bold;")
                 d = QtWidgets.QLabel(evt.get("detail","")); d.setStyleSheet("color: #8b949e;")
-                w = QtWidgets.QWidget()
-                hl = QtWidgets.QHBoxLayout(w); hl.setContentsMargins(0,0,0,0)
                 hl.addWidget(t); hl.addWidget(n); hl.addWidget(st); hl.addWidget(d, 1)
                 self.evl.insertWidget(self.evl.count()-1, w)
 
