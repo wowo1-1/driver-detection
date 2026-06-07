@@ -98,7 +98,7 @@ class BossWindow(QtWidgets.QMainWindow):
         self._setup_timer()
 
     def _setup_ui(self):
-        self.setWindowTitle("Boss Monitor - Driver Detection")
+        self.setWindowTitle("👔 驾驶监控中心")
         self.resize(1100, 700)
         self.setStyleSheet("""
             QMainWindow { background-color: #0d1117; }
@@ -115,16 +115,16 @@ class BossWindow(QtWidgets.QMainWindow):
 
         # Top bar
         tb = QtWidgets.QHBoxLayout()
-        title = QtWidgets.QLabel("Boss Monitor"); title.setStyleSheet("font-size: 22px; font-weight: bold; color: #c9d1d9;")
+        title = QtWidgets.QLabel("👔 驾驶监控中心"); title.setStyleSheet("font-size: 22px; font-weight: bold; color: #c9d1d9;")
         tb.addWidget(title); tb.addStretch()
-        self.conn_label = QtWidgets.QLabel("(disconnected)"); self.conn_label.setStyleSheet("color: #f85149;")
+        self.conn_label = QtWidgets.QLabel("🔴 未连接"); self.conn_label.setStyleSheet("color: #f85149;")
         tb.addWidget(self.conn_label)
-        self.emp_label = QtWidgets.QLabel("Employees: 0"); self.emp_label.setStyleSheet("color: #8b949e;")
+        self.emp_label = QtWidgets.QLabel("员工: 0"); self.emp_label.setStyleSheet("color: #8b949e;")
         tb.addWidget(self.emp_label)
         self.addr_edit = QtWidgets.QLineEdit(self.server_url); self.addr_edit.setFixedWidth(200)
         self.addr_edit.setStyleSheet("background: #21262d; border: 1px solid #30363d; border-radius: 4px; padding: 6px 8px; color: #c9d1d9;")
         tb.addWidget(self.addr_edit)
-        btn = QtWidgets.QPushButton("Connect"); btn.clicked.connect(self._connect); tb.addWidget(btn)
+        btn = QtWidgets.QPushButton("🔄 连接"); btn.clicked.connect(self._connect); tb.addWidget(btn)
         ml.addLayout(tb)
 
         # Cards
@@ -132,7 +132,7 @@ class BossWindow(QtWidgets.QMainWindow):
         sw = QtWidgets.QWidget(); self.cl = QFlowLayout(sw); sc.setWidget(sw); ml.addWidget(sc, 3)
 
         # Events
-        el = QtWidgets.QLabel("Alerts"); el.setStyleSheet("font-size: 15px; font-weight: bold; color: #58a6ff;")
+        el = QtWidgets.QLabel("📋 报警记录"); el.setStyleSheet("font-size: 15px; font-weight: bold; color: #58a6ff;")
         ml.addWidget(el)
         es = QtWidgets.QScrollArea(); es.setWidgetResizable(True); es.setFixedHeight(180)
         es.setStyleSheet("QScrollArea { border: 1px solid #30363d; border-radius: 6px; }")
@@ -141,7 +141,7 @@ class BossWindow(QtWidgets.QMainWindow):
         es.setWidget(ew); ml.addWidget(es, 1)
 
         self.sb = QtWidgets.QStatusBar(); self.sb.setStyleSheet("background: #161b22; border-top: 1px solid #30363d; padding: 4px;")
-        self.setStatusBar(self.sb); self.sb.showMessage("Waiting...")
+        self.setStatusBar(self.sb); self.sb.showMessage("等待连接...")
 
     def _async_get(self, path):
         url = QUrl(f"{self.server_url}{path}")
@@ -165,8 +165,8 @@ class BossWindow(QtWidgets.QMainWindow):
 
     def _on_reply(self, reply):
         if reply.error():
-            self.conn_label.setText("(disconnected)"); self.conn_label.setStyleSheet("color: #f85149;")
-            self.sb.showMessage("Connection failed")
+            self.conn_label.setText("🔴 未连接"); self.conn_label.setStyleSheet("color: #f85149;")
+            self.sb.showMessage("连接失败")
             return
         try:
             data = json.loads(bytes(reply.readAll().data()).decode("utf-8"))
@@ -178,9 +178,9 @@ class BossWindow(QtWidgets.QMainWindow):
             emps = data.get("employees", {})
             self._employees = emps
             total = len(emps)
-            self.conn_label.setText("(connected)"); self.conn_label.setStyleSheet("color: #2ea043;")
-            self.emp_label.setText(f"Employees: {total}")
-            self.sb.showMessage(f"Connected | {total} employees")
+            self.conn_label.setText("🟢 已连接"); self.conn_label.setStyleSheet("color: #2ea043;")
+            self.emp_label.setText(f"员工: {total}")
+            self.sb.showMessage(f"🟢 已连接 | {total} 名员工在线")
             names = list(emps.keys())
             while self.cl.count() > len(names):
                 it = self.cl.takeAt(self.cl.count()-1)
