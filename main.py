@@ -215,26 +215,28 @@ boss_server_enabled = False
 boss_server_url = "http://localhost:6789"
 
 def report_to_server(event_type, detail=""):
-    """向老板端服务器上报检测事件"""
+    """向老板端服务器上报检测事件（异步，不卡主线程）"""
     global employee_name
     if not boss_server_enabled or not employee_name:
         return
-    try:
-        data = json.dumps({
-            "name": employee_name,
-            "driver": current_driver,
-            "type": event_type,
-            "detail": detail,
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            f"{boss_server_url}/report",
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
-        urllib.request.urlopen(req, timeout=2)
-    except Exception:
-        pass
+    def _do():
+        try:
+            data = json.dumps({
+                "name": employee_name,
+                "driver": current_driver,
+                "type": event_type,
+                "detail": detail,
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                f"{boss_server_url}/report",
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            urllib.request.urlopen(req, timeout=2)
+        except Exception:
+            pass
+    threading.Thread(target=_do, daemon=True).start()
 
 # ========== 🔧 阈值滑条回调 ==========
 def on_conf_threshold_changed(value):
